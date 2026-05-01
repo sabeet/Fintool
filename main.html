@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What Did That Cost You?</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1410;
+    --paper: #f5f0e8;
+    --aged: #e8dfc8;
+    --rust: #b85c38;
+    --gold: #c9973a;
+    --muted: #7a6e60;
+    --line: #c8bfaa;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.5;
+  }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 2rem 3rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 2rem;
+  }
+
+  .masthead {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .subtitle {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    min-height: calc(100vh - 6rem);
+  }
+
+  /* LEFT PANEL - inputs */
+  .input-panel {
+    border-right: 2px solid var(--ink);
+    padding: 2.5rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .section-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .field-group { display: flex; flex-direction: column; gap: 0.4rem; }
+
+  .field-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  .field-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1.5px solid var(--ink);
+    padding: 0.5rem 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: var(--ink);
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field-input:focus { border-bottom-color: var(--rust); }
+  .field-input::placeholder { color: var(--line); }
+
+  .prefix {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-right: 0.3rem;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .calculate-btn {
+    margin-top: auto;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 1rem 2rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    width: 100%;
+  }
+
+  .calculate-btn:hover { background: var(--rust); }
+  .calculate-btn:active { transform: scale(0.98); }
+
+  /* RIGHT PANEL - results */
+  .result-panel {
+    padding: 2.5rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--muted);
+    opacity: 0.5;
+  }
+
+  .empty-state .big-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 8rem;
+    font-style: italic;
+    line-height: 1;
+    color: var(--line);
+  }
+
+  .empty-state p {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 1rem;
+  }
+
+  /* RESULTS */
+  .results { display: none; flex-direction: column; gap: 2.5rem; }
+  .results.visible { display: flex; animation: fadeUp 0.5s ease; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-stat {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--ink);
+    border: 1.5px solid var(--ink);
+  }
+
+  .hero-cell {
+    background: var(--paper);
+    padding: 1.25rem 1.5rem;
+  }
+
+  .hero-cell-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-cell-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .hero-cell-value.accent { color: var(--rust); }
+
+  .hero-cell-sub {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+  }
+
+  /* Time section */
+  .time-section {
+    border: 1.5px solid var(--ink);
+    padding: 1.5rem;
+  }
+
+  .time-headline {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 1.1rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.75rem;
+  }
+
+  .time-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+  }
+
+  .time-cell {
+    background: var(--paper);
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .time-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    display: block;
+  }
+
+  .time-lbl {
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    display: block;
+  }
+
+  /* Era table */
+  .era-section { }
+
+  .era-headline {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .era-headline small {
+    font-family: 'DM Mono', monospace;
+    font-style: normal;
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .era-table { width: 100%; border-collapse: collapse; }
+
+  .era-table th {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1.5px solid var(--ink);
+  }
+
+  .era-table td {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.8rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .era-table tr:last-child td { border-bottom: none; }
+
+  .era-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .era-year {
+    font-size: 0.62rem;
+    color: var(--muted);
+    display: block;
+  }
+
+  .burden-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .burden-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--aged);
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  .burden-bar-fill {
+    height: 100%;
+    background: var(--rust);
+    transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .burden-val {
+    font-size: 0.75rem;
+    min-width: 3.5rem;
+    text-align: right;
+  }
+
+  .today-row td { background: var(--aged); }
+  .today-row .era-name { color: var(--rust); }
+
+  .hours-col { color: var(--muted); font-size: 0.75rem; }
+
+  /* Verdict */
+  .verdict {
+    border-top: 2px solid var(--ink);
+    padding-top: 1.5rem;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .verdict strong { color: var(--ink); font-style: normal; }
+
+  @media (max-width: 768px) {
+    header { flex-direction: column; gap: 0.5rem; padding: 1.5rem; }
+    .main-grid { grid-template-columns: 1fr; }
+    .input-panel { border-right: none; border-bottom: 2px solid var(--ink); }
+    .result-panel { padding: 2rem 1.5rem; }
+    .hero-stat { grid-template-columns: 1fr 1fr; }
+    .time-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="masthead">What Did That Cost You?</div>
+    <div class="subtitle" style="margin-top:0.4rem">A century of purchasing power — measured in hours of your life</div>
+  </div>
+</header>
+
+<div class="main-grid">
+  <!-- INPUT PANEL -->
+  <div class="input-panel">
+
+    <div>
+      <div class="section-label">Your Numbers</div>
+
+      <div class="field-group">
+        <div class="field-label">Annual Salary</div>
+        <div class="input-row">
+          <span class="prefix">$</span>
+          <input class="field-input" id="salary" type="number" placeholder="100,000" min="1">
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-group">
+        <div class="field-label">Item Price</div>
+        <div class="input-row">
+          <span class="prefix">$</span>
+          <input class="field-input" id="price" type="number" placeholder="300" min="0.01">
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-group">
+        <div class="field-label">Hours Worked Per Week</div>
+        <div class="input-row">
+          <input class="field-input" id="hours" type="number" placeholder="40" min="1" max="168">
+          <span class="prefix" style="margin-left:0.5rem">hrs</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 1rem; background: var(--aged); font-size:0.68rem; line-height:1.7; color:var(--muted);">
+      We compare your cost burden across eras using historical average wages and jacket prices, normalized to your income percentile.
+    </div>
+
+    <button class="calculate-btn" onclick="calculate()">Calculate the True Cost →</button>
+
+  </div>
+
+  <!-- RESULT PANEL -->
+  <div class="result-panel">
+
+    <div class="empty-state" id="emptyState">
+      <div class="big-num">$?</div>
+      <p>Enter your numbers to see<br>what it really cost you</p>
+    </div>
+
+    <div class="results" id="results">
+
+      <!-- Hero stats -->
+      <div class="hero-stat" id="heroStat"></div>
+
+      <!-- Time cost -->
+      <div class="time-section" id="timeSection"></div>
+
+      <!-- Era table -->
+      <div class="era-section" id="eraSection"></div>
+
+      <!-- Verdict -->
+      <div class="verdict" id="verdict"></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * CPI-U annual averages (base: 1982-84 = 100) — source: BLS / Federal Reserve Minneapolis
+ * Used to deflate today's price back to each era's nominal dollars.
+ * Formula: eraPrice = todayPrice * (eraCPI / todayCPI)
+ *
+ * Median/average annual wages — source: BLS, Census, SSA historical records
+ * Used as the era's "middle income" anchor to scale the user's relative position.
+ *
+ * Avg hours worked per week — source: BLS American Time Use Survey / historical records
+ */
+const eras = [
+  {
+    name: "The Roaring Twenties", year: "1920s",
+    cpi: 17.1,          // BLS CPI-U 1920 annual avg
+    medianWage: 1306,   // avg annual earnings all industries ~1920 (BLS/Census)
+    hoursPerWeek: 50.4  // avg manufacturing hours 1920 (BLS)
+  },
+  {
+    name: "Post-War Boom", year: "1950s",
+    cpi: 24.1,          // BLS CPI-U 1950 annual avg
+    medianWage: 3300,   // median household income 1950 (Federal Reserve / Census)
+    hoursPerWeek: 41.9  // avg weekly hours 1950 (BLS)
+  },
+  {
+    name: "The Great Society", year: "1970s",
+    cpi: 49.3,          // BLS CPI-U 1975 midpoint avg
+    medianWage: 11800,  // median household income 1975 (Census)
+    hoursPerWeek: 39.9  // avg weekly hours 1975 (BLS)
+  },
+  {
+    name: "The MTV Era", year: "1990s",
+    cpi: 144.5,         // BLS CPI-U 1995 annual avg
+    medianWage: 34076,  // median household income 1995 (Census)
+    hoursPerWeek: 39.2  // avg weekly hours 1995 (BLS)
+  },
+  {
+    name: "The New Decade", year: "2010s",
+    cpi: 218.1,         // BLS CPI-U 2010 annual avg
+    medianWage: 49445,  // median household income 2010 (Census)
+    hoursPerWeek: 38.5  // avg weekly hours 2010 (BLS)
+  },
+  {
+    name: "Today", year: "Now",
+    cpi: 314.2,         // BLS CPI-U 2024 annual avg
+    medianWage: 66000,  // median personal earnings 2024 (BLS)
+    hoursPerWeek: 38.0, // avg weekly hours 2024 (BLS)
+    isToday: true
+  },
+];
+
+const TODAY_CPI = 314.2;
+const TODAY_MEDIAN = 66000;
+
+function fmt(n, dec = 1) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+function calculate() {
+  const salary = parseFloat(document.getElementById('salary').value);
+  const price  = parseFloat(document.getElementById('price').value);
+  const hours  = parseFloat(document.getElementById('hours').value) || 40;
+
+  if (!salary || !price || salary <= 0 || price <= 0) {
+    alert("Please enter your salary and the item price.");
+    return;
+  }
+
+  const weeksPerYear = 52;
+  const hourlyRate = salary / (hours * weeksPerYear);
+  const hoursToEarn = price / hourlyRate;
+  const dayFraction = hoursToEarn / 8;
+  const burden = (price / salary) * 100;
+
+  // User's income percentile ratio vs today's median — preserved across eras
+  const incomeRatio = salary / TODAY_MEDIAN;
+
+  // Avg worker comparison (today)
+  const avgHourly = TODAY_MEDIAN / (38 * weeksPerYear);
+  const avgHoursToEarn = price / avgHourly;
+
+  // Hero
+  document.getElementById('heroStat').innerHTML = `
+    <div class="hero-cell">
+      <div class="hero-cell-label">Your Cost Burden</div>
+      <div class="hero-cell-value accent">${fmt(burden, 3)}%</div>
+      <div class="hero-cell-sub">of your annual income</div>
+    </div>
+    <div class="hero-cell">
+      <div class="hero-cell-label">Item Price</div>
+      <div class="hero-cell-value">$${fmt(price, 2)}</div>
+      <div class="hero-cell-sub">on $${salary.toLocaleString()} / year</div>
+    </div>
+  `;
+
+  // Time section
+  document.getElementById('timeSection').innerHTML = `
+    <div class="time-headline">Hours of your life spent earning this</div>
+    <div class="time-grid">
+      <div class="time-cell">
+        <span class="time-val">${fmt(hoursToEarn, 1)}</span>
+        <span class="time-lbl">Your Hours</span>
+      </div>
+      <div class="time-cell">
+        <span class="time-val">${fmt(avgHoursToEarn, 1)}</span>
+        <span class="time-lbl">Avg American's Hours</span>
+      </div>
+      <div class="time-cell">
+        <span class="time-val" style="color:var(--rust)">${fmt(dayFraction, 2)}</span>
+        <span class="time-lbl">Work Days</span>
+      </div>
+    </div>
+    <div style="margin-top:1rem; font-size:0.68rem; color:var(--muted); line-height:1.6;">
+      At your rate of $${fmt(hourlyRate, 2)}/hr — working ${hours} hrs/week
+    </div>
+  `;
+
+  // Era table — all derived from CPI and real wage data
+  let maxBurden = 0;
+  const eraData = eras.map(era => {
+    // Deflate today's price to era's nominal dollars using CPI ratio
+    const eraPrice = era.isToday ? price : price * (era.cpi / TODAY_CPI);
+
+    // Scale user's income to era using their percentile position vs median
+    const eraUserIncome = era.medianWage * incomeRatio;
+
+    const eraBurden = (eraPrice / eraUserIncome) * 100;
+    const eraHourly = eraUserIncome / (era.hoursPerWeek * weeksPerYear);
+    const eraHours  = eraPrice / eraHourly;
+
+    if (eraBurden > maxBurden) maxBurden = eraBurden;
+    return { ...era, eraPrice, eraUserIncome, eraBurden, eraHours };
+  });
+
+  const rows = eraData.map(d => {
+    const barWidth = Math.min((d.eraBurden / maxBurden) * 100, 100);
+    return `
+      <tr class="${d.isToday ? 'today-row' : ''}">
+        <td>
+          <span class="era-name">${d.name}</span>
+          <span class="era-year">${d.year}</span>
+        </td>
+        <td>$${fmt(d.eraPrice, 2)}</td>
+        <td>$${fmt(d.eraUserIncome, 0)}</td>
+        <td>
+          <div class="burden-bar-wrap">
+            <div class="burden-bar-bg"><div class="burden-bar-fill" style="width:${barWidth}%"></div></div>
+            <span class="burden-val">${fmt(d.eraBurden, 3)}%</span>
+          </div>
+        </td>
+        <td class="hours-col">${fmt(d.eraHours, 1)}h</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('eraSection').innerHTML = `
+    <div class="era-headline">
+      Across the Decades
+      <small>Item price deflated by CPI · Your income scaled by percentile</small>
+    </div>
+    <table class="era-table">
+      <thead>
+        <tr>
+          <th>Era</th>
+          <th>Item Price (nominal)</th>
+          <th>Your Equiv. Income</th>
+          <th>Burden</th>
+          <th>Hours</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  // Verdict
+  const cheapestEra = eraData.reduce((a, b) => a.eraBurden < b.eraBurden ? a : b);
+  const todayEra    = eraData.find(e => e.isToday);
+  const ratio       = todayEra.eraBurden / cheapestEra.eraBurden;
+
+  document.getElementById('verdict').innerHTML = `
+    This item costs you <strong>${fmt(burden, 3)}%</strong> of your annual income — 
+    ${fmt(hoursToEarn, 1)} hours of your life. The average American would spend 
+    <strong>${fmt(avgHoursToEarn, 1)} hours</strong> to afford the same thing.
+    At your relative income level, this purchase was most affordable in <strong>${cheapestEra.name}</strong> — 
+    today it demands <strong>${fmt(ratio, 1)}×</strong> more of your life by that measure.
+    <br><br>
+    <span style="font-size:0.75rem; font-style:normal; font-family:'DM Mono',monospace; color:var(--muted)">
+      Item prices deflated using BLS CPI-U. Your income scaled by your percentile position relative to the median wage of each era.
+    </span>
+  `;
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('results').classList.add('visible');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+</script>
+</body>
+</html>
